@@ -48,8 +48,7 @@ Public Class Draw
     End Sub
 
     Public Sub ChangeStageSize(ByVal width As Integer, ByVal height As Integer)
-        Stage.Width = width
-        Stage.Height = height
+        Stage.ClientSize = New Size(width, height)
 
         DisposeGraphicsAndBuffer()
 
@@ -68,6 +67,11 @@ Public Class Draw
         End If
         For i As Integer = 0 To UBound(ptr)
             Dim mItem As ItemTag = ItemTable.GetItemByPtr(ptr(i))
+
+            If mItem.Enable = False Then
+                Continue For
+            End If
+
             If mItem IsNot Nothing Then
                 Dim actRange As New Rectangle
                 actRange.Width = mItem.Content.Range.Width
@@ -81,6 +85,7 @@ Public Class Draw
                         Dim font As Font = ResTable.GetStyleRes(mItem.Content.Style).Font
                         Dim actSize As SizeF = bufferGrap.MeasureString(text, font, New SizeF(originRange.Width, originRange.Height))
                         actRange.Size = actSize.ToSize()
+                        actRange.Width += 1
                     End If
                     ItemsToDraw.Add(New DrawingItem(mItem, actRange))
                 ElseIf mItem.Type = Item.ItemType.Image Then
@@ -125,8 +130,26 @@ Public Class Draw
 
     Private Sub DrawImage(ByRef Grap As Graphics, ByRef content As ItemContent, ByVal range As Rectangle)
         Dim mImage As Image = ResTable.GetImageRes(content.Image)
+        Dim style As Resources.Style = ResTable.GetStyleRes(content.Style)
 
-        Grap.DrawImage(mImage, range)
+        If style.TransParency <> 225 Then
+            Dim matrixItems As Single()() = { _
+               New Single() {1, 0, 0, 0, 0}, _
+               New Single() {0, 1, 0, 0, 0}, _
+               New Single() {0, 0, 1, 0, 0}, _
+               New Single() {0, 0, 0, CDbl(style.TransParency) / 225.0F, 0}, _
+               New Single() {0, 0, 0, 0, 1}}
+
+            Dim colorMatrix As New Imaging.ColorMatrix(matrixItems)
+            Dim imageAttr As New Imaging.ImageAttributes()
+            imageAttr.SetColorMatrix( _
+               colorMatrix, _
+              Imaging.ColorMatrixFlag.Default, _
+               Imaging.ColorAdjustType.Bitmap)
+            Grap.DrawImage(mImage, range, 0, 0, mImage.Width, mImage.Height, GraphicsUnit.Pixel, imageAttr)
+        Else
+            Grap.DrawImage(mImage, range)
+        End If
     End Sub
 
     Public Sub CleanLoadedItem()

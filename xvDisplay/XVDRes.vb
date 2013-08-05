@@ -68,6 +68,7 @@ Namespace Resources
         End Sub
 
         Sub New(ByRef _name As String, ByRef _text As String)
+            Type = ResType.Text
             Name = _name
             Text = _text
         End Sub

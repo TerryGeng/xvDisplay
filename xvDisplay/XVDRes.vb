@@ -63,6 +63,15 @@ Namespace Resources
         Public Image As Image = Nothing
         Public Style As Style = Nothing
 
+        Sub New()
+
+        End Sub
+
+        Sub New(ByRef _name As String, ByRef _text As String)
+            Name = _name
+            Text = _text
+        End Sub
+
 #Region "IDisposable Support"
         Private disposedValue As Boolean ' 检测冗余的调用
 

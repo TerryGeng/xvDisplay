@@ -9,7 +9,7 @@ Public Class Configuration
     Dim Draw As Draw
 
     Dim TempFlag As Boolean = False
-    Dim itemPrefix As String = ""
+    Dim itemPrefix As String = "--"
     Dim defaultStylePtr As UInt16 = 0
 
     Sub New(ByRef _stageForm As Form, ByRef _itemTable As Item.ItemTable, ByRef _resTable As Resources.ResTable, ByRef _draw As Draw)
@@ -38,7 +38,7 @@ Public Class Configuration
             ConfReader.ReadStartElement("xdConfiguration")
 
             If Not CheckFileVersion(ConfReader) Then
-                Throw New ApplicationException("Configuration file: Unavailable file version(Current Version: " + FILE_VERSION + ").")
+                ThrowError("LoadConfFile", "--", "Unavailable configuration file version.")
             End If
 
             While ConfReader.Read()
@@ -90,14 +90,26 @@ Public Class Configuration
                 Dim ImageSrc As String = Confreader.GetAttribute("src")
                 res.Name = Confreader.GetAttribute("name")
                 res.Type = Resources.ResType.Image
-                If ImageSrc Is Nothing Then
-                    Throw New ApplicationException("Error: Attribute 'src' hasn't defined in res '" + res.Name + "'.")
+
+                If res.Name Is Nothing Then
+                    Warning("LoadRes", "resources." + res.Name, "Empty resource name (This means no item can cite this resource).")
                 End If
-                res.Image = Image.FromFile(ImageSrc)
+
+                If ImageSrc Is Nothing Then
+                    ThrowError("LoadRes", "resources." + res.Name, "Expect attribute 'src' for image resource.")
+                End If
+
+                Try
+                    res.Image = Image.FromFile(ImageSrc)
+                Catch ex As Exception
+                    ThrowError("LoadRes", "resources." + res.Name, "Unable to load image from file: " + ex.Message)
+                End Try
 
                 ResTable.AddRes(res)
             ElseIf Confreader.NodeType = XmlNodeType.EndElement Then
                 Return
+            Else
+                Warning("LoadRes", "resources", "Unexpected element '" + Confreader.Name + "'.")
             End If
         End While
     End Sub
@@ -219,16 +231,14 @@ Public Class Configuration
         ConfReader.ReadStartElement()
 
         While ConfReader.Read()
-            If ConfReader.IsStartElement("text") Then
-                Childs.Add(LoadTextItem(ConfReader, baseStylePtr))
-            ElseIf ConfReader.IsStartElement("image") Then
-                Childs.Add(LoadImageItem(ConfReader, baseStylePtr))
-            ElseIf ConfReader.IsStartElement("block") Then
+            If ConfReader.IsStartElement("block") Then
                 Childs.Add(LoadBlock(ConfReader, baseStylePtr))
             ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
                 Dim ChildArray() As UShort = Childs.ToArray(GetType(UShort))
                 Childs.Clear()
                 Return ChildArray
+            Else
+                Childs.Add(LoadNormalItem(ConfReader, baseStylePtr))
             End If
         End While
 
@@ -272,104 +282,61 @@ Public Class Configuration
         Return ItemTable.AddItem(tag)
     End Function
 
-    Private Function LoadTextItem(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16
-        Dim tag As Item.ItemTag
+    Private Function LoadNormalItem(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16
+        Dim tag As New Item.ItemTag
         Dim name As String = ConfReader.GetAttribute("name")
 
-        tag = New Item.ItemTag
+        If ConfReader.IsStartElement("text") Then
+            tag.Type = Item.ItemType.Text
+        ElseIf ConfReader.IsStartElement("image") Then
+            tag.Type = Item.ItemType.Image
+        End If
+
         tag.Content.Style = baseStylePtr
         If name IsNot Nothing Then
             tag.Name = itemPrefix + "." + name
         End If
-        tag.Type = Item.ItemType.Text
 
         If Not ConfReader.IsEmptyElement() Then
             ConfReader.ReadStartElement()
 
             While ConfReader.Read()
                 If ConfReader.IsStartElement("value") Then
+                    Dim resType As Resources.ResType = Resources.ResType.Undefined
+                    Dim resPtr As UInt16 = 0
                     Dim resName As String = ConfReader.GetAttribute("res")
-                    Dim textPtr As UInt16 = 0
 
                     If resName IsNot Nothing Then
-                        textPtr = ResTable.GetResPtr(resName)
+                        resPtr = ResTable.GetResPtr(resName)
+                    ElseIf tag.Type = Item.ItemType.Text Then
+                        resPtr = ResTable.AddRes(New Resources.ResTag("", ConfReader.ReadElementContentAsString()))
                     Else
-                        Dim res As New Resources.ResTag
-                        res.Name = ""
-                        res.Type = Resources.ResType.Text
-                        res.Text = ConfReader.ReadElementContentAsString()
-
-                        textPtr = ResTable.AddRes(res)
+                        Warning("LoadItems", itemPrefix + "." + "name", "Unexpected resource name for '" + name + "' in element 'value'.")
                     End If
 
-                    tag.Content.Text = textPtr
+                    If tag.Type = Item.ItemType.Text Then
+                        resType = Resources.ResType.Text
+                        tag.Content.Text = resPtr
+                    ElseIf tag.Type = Item.ItemType.Image Then
+                        resType = Resources.ResType.Image
+                        tag.Content.Image = resPtr
+                    Else
+                        Warning("LoadItems", itemPrefix + "." + "name", "Unexpected element 'value' for '" + name + "'.")
+                    End If
                 ElseIf ConfReader.IsStartElement("range") Then
                     tag.Content.Range = LoadRange(ConfReader)
                 ElseIf ConfReader.IsStartElement("style") Then
                     tag.Content.Style = LoadStyle(ConfReader, baseStylePtr)
                 ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
                     Exit While
+                Else
+                    Warning("LoadItems", itemPrefix, "Unexpected element '" + ConfReader.Name + "'.")
                 End If
             End While
         End If
 
         Return ItemTable.AddItem(tag)
     End Function
-
-    Private Function LoadImageItem(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16
-        Dim tag As Item.ItemTag
-        Dim name As String = ConfReader.GetAttribute("name")
-
-        tag = New Item.ItemTag
-        tag.Content.Style = baseStylePtr
-        If name IsNot Nothing Then
-            tag.Name = itemPrefix + "." + name
-        End If
-        tag.Type = Item.ItemType.Image
-        ConfReader.ReadStartElement()
-
-        If Not ConfReader.IsEmptyElement() Then
-            ConfReader.ReadStartElement()
-            While ConfReader.Read()
-                If ConfReader.IsStartElement("value") Then
-                    Dim resName As String = ConfReader.GetAttribute("res")
-                    Dim imagePtr As UInt16 = 0
-
-                    If resName IsNot Nothing Then
-                        imagePtr = ResTable.GetResPtr(resName)
-                    Else
-                        Dim ImageSrc As String = ConfReader.GetAttribute("src")
-                        If ImageSrc IsNot Nothing Then
-                            Dim res As New Resources.ResTag
-                            res.Name = ""
-                            res.Type = Resources.ResType.Image
-                            res.Image = Image.FromFile(ImageSrc)
-
-                            imagePtr = ResTable.AddRes(res)
-                        End If
-
-                    End If
-                    tag.Content.Image = imagePtr
-                ElseIf ConfReader.IsStartElement("range") Then
-                    tag.Content.Range = LoadRange(ConfReader)
-                ElseIf ConfReader.IsStartElement("style") Then
-                    If ConfReader.MoveToAttribute("res") Then
-                        Dim styleName As String = ConfReader.ReadContentAsString()
-                        Dim stylePtr As UInt16 = ResTable.GetResPtr(styleName)
-                        ConfReader.MoveToElement()
-                        tag.Content.Style = stylePtr
-                    Else
-                        tag.Content.Style = LoadStyle(ConfReader, baseStylePtr)
-                    End If
-                ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
-                    Exit While
-                End If
-            End While
-        End If
-
-        Return ItemTable.AddItem(tag)
-    End Function
-
 
     Private Function CheckFileVersion(ByRef ConfReader As XmlReader) As Boolean
         ConfReader.MoveToContent()
@@ -416,4 +383,14 @@ Public Class Configuration
         End If
         Return rec
     End Function
+
+
+    Private Sub Warning(ByVal funcName As String, ByVal Position As String, ByVal Message As String)
+        MsgBox(String.Format("Configuration Warning ({1})[{0}]: {2}", funcName, Position, Message))
+    End Sub
+
+    Private Sub ThrowError(ByVal funcName As String, ByVal Position As String, ByVal Message As String)
+        Throw New ApplicationException(String.Format("Configuration Error ({1})[{0}]: {2}", funcName, Position, Message))
+
+    End Sub
 End Class

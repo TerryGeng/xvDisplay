@@ -164,6 +164,8 @@ Public Class Configuration
                 transparency = ConfReader.ReadElementContentAsString()
             ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
                 Exit While
+            Else
+                Warning("LoadStyle", "resources", "Unexpected element '" + ConfReader.Name + "'.")
             End If
         End While
 
@@ -192,6 +194,10 @@ Public Class Configuration
                 intTrans = baseStyleContent.Brush.Color.A
             Else
                 intTrans = CInt(transparency)
+                If intTrans > 255 Then
+                    Warning("LoadStyle", itemPrefix, "Illegal transparency (0~255).")
+                    intTrans = 255
+                End If
             End If
 
             If color Is Nothing Then
@@ -248,6 +254,7 @@ Public Class Configuration
     Private Function LoadBlock(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16
         Dim tag As Item.ItemTag
         Dim baseTagName As String = ConfReader.GetAttribute("base")
+        Dim enable As String = ConfReader.GetAttribute("enable")
 
         If baseTagName IsNot Nothing Then
             tag = ItemTable.CloneItem(ItemTable.GetItemByName(baseTagName))
@@ -257,6 +264,19 @@ Public Class Configuration
         End If
 
         Dim originPrefix As String = itemPrefix
+
+        If enable IsNot Nothing Then
+            enable.ToLower()
+            If enable = "true" Then
+                tag.Enable = True
+            ElseIf enable = "false" Then
+                tag.Enable = False
+            Else
+                Warning("LoadBlock", itemPrefix, "Unexpected attribute value for 'enable'.")
+            End If
+        Else
+            tag.Enable = True
+        End If
 
         tag.Name = itemPrefix + "." + ConfReader.GetAttribute("name")
         itemPrefix = tag.Name
@@ -275,6 +295,8 @@ Public Class Configuration
                 ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
                     itemPrefix = originPrefix
                     Exit While
+                Else
+                    Warning("LoadBlock", "resources", "Unexpected element '" + ConfReader.Name + "'.")
                 End If
             End While
         End If
@@ -285,6 +307,7 @@ Public Class Configuration
     Private Function LoadNormalItem(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16
         Dim tag As New Item.ItemTag
         Dim name As String = ConfReader.GetAttribute("name")
+        Dim enable As String = ConfReader.GetAttribute("enable")
 
         If ConfReader.IsStartElement("text") Then
             tag.Type = Item.ItemType.Text
@@ -295,6 +318,19 @@ Public Class Configuration
         tag.Content.Style = baseStylePtr
         If name IsNot Nothing Then
             tag.Name = itemPrefix + "." + name
+        End If
+
+        If enable IsNot Nothing Then
+            enable.ToLower()
+            If enable = "true" Then
+                tag.Enable = True
+            ElseIf enable = "false" Then
+                tag.Enable = False
+            Else
+                Warning("LoadNormalItem", itemPrefix, "Unexpected attribute value for 'enable'.")
+            End If
+        Else
+            tag.Enable = True
         End If
 
         If Not ConfReader.IsEmptyElement() Then
@@ -321,7 +357,7 @@ Public Class Configuration
                         resType = Resources.ResType.Image
                         tag.Content.Image = resPtr
                     Else
-                        Warning("LoadItems", itemPrefix + "." + "name", "Unexpected element 'value' for '" + name + "'.")
+                        Warning("LoadNormalItem", itemPrefix + "." + "name", "Unexpected element 'value' for '" + name + "'.")
                     End If
                 ElseIf ConfReader.IsStartElement("range") Then
                     tag.Content.Range = LoadRange(ConfReader)
@@ -330,7 +366,7 @@ Public Class Configuration
                 ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
                     Exit While
                 Else
-                    Warning("LoadItems", itemPrefix, "Unexpected element '" + ConfReader.Name + "'.")
+                    Warning("LoadNormalItem", itemPrefix, "Unexpected element '" + ConfReader.Name + "'.")
                 End If
             End While
         End If

@@ -81,7 +81,7 @@ Public Class Configuration
             If Confreader.IsStartElement("textRes") Then ' <textRes name="[Name]">[Text]</testRes>
                 res.Name = Confreader.GetAttribute("name")
                 res.Type = Resources.ResType.Text
-                res.Text = Confreader.ReadElementContentAsString()
+                res.Text = Confreader.ReadElementContentAsString().Replace("\n", vbCrLf)
 
                 ResTable.AddRes(res)
             ElseIf Confreader.IsStartElement("styleRes") Then
@@ -345,7 +345,7 @@ Public Class Configuration
                     If resName IsNot Nothing Then
                         resPtr = ResTable.GetResPtr(resName)
                     ElseIf tag.Type = Item.ItemType.Text Then
-                        resPtr = ResTable.AddRes(New Resources.ResTag("", ConfReader.ReadElementContentAsString()))
+                        resPtr = ResTable.AddRes(New Resources.ResTag("", ConfReader.ReadElementContentAsString().Replace("\n", vbCrLf)))
                     Else
                         Warning("LoadItems", itemPrefix + "." + "name", "Unexpected resource name for '" + name + "' in element 'value'.")
                     End If

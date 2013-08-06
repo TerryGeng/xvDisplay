@@ -12,15 +12,22 @@ Public Class Draw
         Reflow
         Repaint
     End Enum
+
     Public Class DrawingItem
+        Public Enum EventStatus
+            Normal
+            Hover
+            Press
+        End Enum
+
         Public Tag As ItemTag
         Public ActualRange As Rectangle
-        Public Update As UpdateFlag
+        Public Status As EventStatus
 
         Sub New(ByRef _tag As ItemTag, ByRef _actualRange As Rectangle)
             Tag = _tag
             ActualRange = _actualRange
-            Update = UpdateFlag.Reflow
+            Status = EventStatus.Normal
         End Sub
     End Class
 
@@ -34,6 +41,11 @@ Public Class Draw
 
     Dim ItemTable As ItemTable
     Dim ItemsToDraw As ArrayList
+    Dim OriginalItems() As ItemPtr
+
+    Dim ItemEvents As ArrayList
+
+    Public Update As UpdateFlag
 
     Sub New(ByRef _stageForm As Form, ByRef _itemTable As ItemTable, ByRef _resTable As Resources.ResTable)
         Stage = _stageForm
@@ -41,6 +53,8 @@ Public Class Draw
         StageGrap = Graphics.FromHwnd(Stage.Handle)
         ResTable = _resTable
         ItemsToDraw = New ArrayList()
+        OriginalItems = {}
+        Update = UpdateFlag.Reflow
         bufferBmp = New Bitmap(Stage.Width, Stage.Height)
         bufferGrap = Graphics.FromImage(bufferBmp)
 
@@ -55,6 +69,22 @@ Public Class Draw
         StageGrap = Graphics.FromHwnd(Stage.Handle)
         bufferBmp = New Bitmap(Stage.Width, Stage.Height)
         bufferGrap = Graphics.FromImage(bufferBmp)
+    End Sub
+
+    Private Sub ReloadGrap()
+        StageGrap = Graphics.FromHwnd(Stage.Handle)
+        bufferBmp = New Bitmap(Stage.Width, Stage.Height)
+        bufferGrap = Graphics.FromImage(bufferBmp)
+    End Sub
+
+    Public Sub DrawItemSet(ByRef setName As String)
+        OriginalItems = ItemTable.GetItemByName(setName).Childs
+        If OriginalItems Is Nothing Then
+            Throw New ApplicationException("Error: Unknown ItemSet '" + setName + "'.")
+        End If
+
+        Update = UpdateFlag.Reflow
+        Draw()
     End Sub
 
     Public Sub LoadItemsToDraw(ByRef ptr() As ItemPtr, Optional ByRef originRange As Rectangle = Nothing)
@@ -101,7 +131,15 @@ Public Class Draw
         Next
     End Sub
 
-    Public Sub Draw()
+    Public Sub DrawToBuffer()
+        If Update = UpdateFlag.Reflow Then
+            LoadItemsToDraw(OriginalItems)
+            Update = UpdateFlag.Repaint
+        End If
+
+        If bufferGrap Is Nothing Then
+            ReloadGrap()
+        End If
         bufferGrap.Clear(Color.White)
         For i As Integer = 0 To ItemsToDraw.Count - 1
             Dim mItem As ItemTag = ItemsToDraw(i).Tag
@@ -113,8 +151,15 @@ Public Class Draw
                 DrawImage(bufferGrap, mItem.Content, range)
             End If
         Next
+    End Sub
 
+    Public Sub DrawToStage()
         StageGrap.DrawImage(bufferBmp, 0, 0)
+    End Sub
+
+    Public Sub Draw()
+        DrawToBuffer()
+        DrawToStage()
     End Sub
 
     Private Sub DrawText(ByRef Grap As Graphics, ByRef content As ItemContent, ByVal range As Rectangle)
@@ -160,6 +205,9 @@ Public Class Draw
         StageGrap.Dispose()
         bufferBmp.Dispose()
         bufferGrap.Dispose()
+        StageGrap = Nothing
+        bufferBmp = Nothing
+        bufferGrap = Nothing
     End Sub
 
 #Region "IDisposable Support"

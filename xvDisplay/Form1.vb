@@ -16,7 +16,6 @@
                 ctrl = New Controller(Me)
                 ctrl.Start()
             Next
-            GC.Collect()
         End If
     End Sub
 End Class

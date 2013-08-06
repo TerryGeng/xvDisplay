@@ -231,7 +231,7 @@ Public Class Configuration
         itemPrefix = originPrefix
     End Sub
 
-    Private Function LoadItems(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16()
+    Private Function LoadItems(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr?() As UInt16 = Nothing) As UInt16()
         Dim Childs As New ArrayList()
 
         ConfReader.ReadStartElement()
@@ -251,7 +251,7 @@ Public Class Configuration
         Return Nothing
     End Function
 
-    Private Function LoadBlock(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16
+    Private Function LoadBlock(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr?() As UInt16 = Nothing) As UInt16
         Dim tag As Item.ItemTag
         Dim baseTagName As String = ConfReader.GetAttribute("base")
         Dim enable As String = ConfReader.GetAttribute("enable")
@@ -260,51 +260,54 @@ Public Class Configuration
             tag = ItemTable.CloneItem(ItemTable.GetItemByName(baseTagName))
         Else
             tag = New Item.ItemTag
-            tag.Content.Style = baseStylePtr
-        End If
-
-        Dim originPrefix As String = itemPrefix
-
-        If enable IsNot Nothing Then
-            enable.ToLower()
-            If enable = "true" Then
-                tag.Enable = True
-            ElseIf enable = "false" Then
-                tag.Enable = False
-            Else
-                Warning("LoadBlock", itemPrefix, "Unexpected attribute value for 'enable'.")
+            If baseStylePtr IsNot Nothing Then
+                tag.Content.Style = baseStylePtr
             End If
-        Else
-            tag.Enable = True
-        End If
+            End If
 
-        tag.Name = itemPrefix + "." + ConfReader.GetAttribute("name")
-        itemPrefix = tag.Name
-        tag.Type = Item.ItemType.Block
+            Dim originPrefix As String = itemPrefix
 
-        If Not ConfReader.IsEmptyElement() Then
-            ConfReader.ReadStartElement()
-
-            While ConfReader.Read()
-                If ConfReader.IsStartElement("range") Then
-                    tag.Content.Range = LoadRange(ConfReader)
-                ElseIf ConfReader.IsStartElement("style") Then
-                    tag.Content.Style = LoadStyle(ConfReader)
-                ElseIf ConfReader.IsStartElement("items") Then
-                    tag.Childs = LoadItems(ConfReader, tag.Content.Style)
-                ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
-                    itemPrefix = originPrefix
-                    Exit While
+            If enable IsNot Nothing Then
+                enable.ToLower()
+                If enable = "true" Then
+                    tag.Enable = True
+                ElseIf enable = "false" Then
+                    tag.Enable = False
                 Else
-                    Warning("LoadBlock", "resources", "Unexpected element '" + ConfReader.Name + "'.")
+                    Warning("LoadBlock", itemPrefix, "Unexpected attribute value for 'enable'.")
                 End If
-            End While
-        End If
+            Else
+                tag.Enable = True
+            End If
 
-        Return ItemTable.AddItem(tag)
+            tag.Name = itemPrefix + "." + ConfReader.GetAttribute("name")
+            itemPrefix = tag.Name
+            tag.Type = Item.ItemType.Block
+
+            If Not ConfReader.IsEmptyElement() Then
+                ConfReader.ReadStartElement()
+
+                While ConfReader.Read()
+                    If ConfReader.IsStartElement("range") Then
+                        tag.Content.Range = LoadRange(ConfReader)
+                    ElseIf ConfReader.IsStartElement("style") Then
+                    Dim status As Item.EventType = GetEventType(ConfReader.GetAttribute("status"))
+                    tag.Content.Style(status) = LoadStyle(ConfReader)
+                    ElseIf ConfReader.IsStartElement("items") Then
+                        tag.Childs = LoadItems(ConfReader, tag.Content.Style)
+                    ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
+                        itemPrefix = originPrefix
+                        Exit While
+                    Else
+                        Warning("LoadBlock", "resources", "Unexpected element '" + ConfReader.Name + "'.")
+                    End If
+                End While
+            End If
+
+            Return ItemTable.AddItem(tag)
     End Function
 
-    Private Function LoadNormalItem(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr? As UInt16 = Nothing) As UInt16
+    Private Function LoadNormalItem(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr?() As UInt16 = Nothing) As UInt16
         Dim tag As New Item.ItemTag
         Dim name As String = ConfReader.GetAttribute("name")
         Dim enable As String = ConfReader.GetAttribute("enable")
@@ -315,7 +318,9 @@ Public Class Configuration
             tag.Type = Item.ItemType.Image
         End If
 
-        tag.Content.Style = baseStylePtr
+        If baseStylePtr IsNot Nothing Then
+            tag.Content.Style = baseStylePtr
+        End If
         If name IsNot Nothing Then
             tag.Name = itemPrefix + "." + name
         End If
@@ -341,6 +346,7 @@ Public Class Configuration
                     Dim resType As Resources.ResType = Resources.ResType.Undefined
                     Dim resPtr As UInt16 = 0
                     Dim resName As String = ConfReader.GetAttribute("res")
+                    Dim status As Item.EventType = GetEventType(ConfReader.GetAttribute("status"))
 
                     If resName IsNot Nothing Then
                         resPtr = ResTable.GetResPtr(resName)
@@ -352,17 +358,18 @@ Public Class Configuration
 
                     If tag.Type = Item.ItemType.Text Then
                         resType = Resources.ResType.Text
-                        tag.Content.Text = resPtr
+                        tag.Content.Text(status) = resPtr
                     ElseIf tag.Type = Item.ItemType.Image Then
                         resType = Resources.ResType.Image
-                        tag.Content.Image = resPtr
+                        tag.Content.Image(status) = resPtr
                     Else
                         Warning("LoadNormalItem", itemPrefix + "." + "name", "Unexpected element 'value' for '" + name + "'.")
                     End If
                 ElseIf ConfReader.IsStartElement("range") Then
                     tag.Content.Range = LoadRange(ConfReader)
                 ElseIf ConfReader.IsStartElement("style") Then
-                    tag.Content.Style = LoadStyle(ConfReader, baseStylePtr)
+                    Dim status As Item.EventType = GetEventType(ConfReader.GetAttribute("status"))
+                    tag.Content.Style(status) = LoadStyle(ConfReader)
                 ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
                     Exit While
                 Else
@@ -420,6 +427,22 @@ Public Class Configuration
         Return rec
     End Function
 
+    Private Function GetEventType(ByVal statusStr As String) As Item.EventType
+        Dim status As Item.EventType = Item.EventType.Normal
+
+        If statusStr IsNot Nothing Then
+            statusStr = statusStr.ToLower()
+            If statusStr = "normal" Then
+                status = Item.EventType.Normal
+            ElseIf statusStr = "hover" Then
+                status = Item.EventType.Hover
+            ElseIf statusStr = "press" Then
+                status = Item.EventType.Press
+            End If
+        End If
+
+        Return status
+    End Function
 
     Private Sub Warning(ByVal funcName As String, ByVal Position As String, ByVal Message As String)
         MsgBox(String.Format("Configuration Warning ({1})[{0}]: {2}", funcName, Position, Message))

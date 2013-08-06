@@ -60,8 +60,8 @@ Namespace Resources
         Public Name As String = ""
         Public Type As ResType = ResType.Undefined
         Public Text As String = ""
-        Public Image As Image = Nothing
-        Public Style As Style = Nothing
+        Public Image As Image
+        Public Style As Style
 
         Sub New()
 

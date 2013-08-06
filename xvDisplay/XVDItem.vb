@@ -12,6 +12,12 @@ Namespace Item
         Block
     End Enum
 
+    Public Enum EventType
+        Normal
+        Hover
+        Press
+    End Enum
+
     Public Class ItemTable
         Implements IDisposable
         Dim NameToAddress As Hashtable
@@ -95,9 +101,9 @@ Namespace Item
 
     Public Class ItemContent
         Public Range As Rectangle = Nothing
-        Public Style? As ResPtr = Nothing
-        Public Text? As ResPtr = Nothing
-        Public Image? As ResPtr = Nothing
+        Public Style?(3) As ResPtr
+        Public Text?(3) As ResPtr
+        Public Image?(3) As ResPtr
     End Class
 End Namespace
 

@@ -190,7 +190,9 @@ Namespace Resources
             If Not Me.disposedValue Then
                 If disposing Then
                     For i As Integer = 0 To ResList.Count - 1
-                        NameToAddress.Remove(ResList(i).Name)
+                        If ResList(i).Name IsNot Nothing Then
+                            NameToAddress.Remove(ResList(i).Name)
+                        End If
                         ResList(i).Dispose()
                     Next
                 End If

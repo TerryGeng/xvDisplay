@@ -1,37 +1,44 @@
 ﻿Imports System.Xml
+Imports StandardIO = SBSLibrary.StandardIO
 
 Public Class Configuration
+    Declare Function GetTickCount Lib "kernel32" () As Long
+
     Const FILE_VERSION As String = "v0.1"
 
     Dim StageForm As Form
     Dim ItemTable As Item.ItemTable
     Dim ResTable As Resources.ResTable
     Dim Draw As Draw
+    Dim ScriptEngine As SBSLibrary.SBSEngine
 
     Dim TempFlag As Boolean = False
     Dim itemPrefix As String = "--"
     Dim defaultStylePtr As UInt16 = 0
 
-    Sub New(ByRef _stageForm As Form, ByRef _itemTable As Item.ItemTable, ByRef _resTable As Resources.ResTable, ByRef _draw As Draw)
+    Sub New(ByRef _stageForm As Form, ByRef _itemTable As Item.ItemTable, ByRef _resTable As Resources.ResTable, ByRef _draw As Draw, ByRef _scriptEngine As SBSLibrary.SBSEngine)
         StageForm = _stageForm
         ItemTable = _itemTable
         ResTable = _resTable
         Draw = _draw
+        ScriptEngine = _scriptEngine
 
-        Try
-            ResTable.GetResPtr("defaultStyle")
-        Catch ex As Exception
-
-        End Try
     End Sub
 
     Public Sub LoadConfFile(ByVal fileName As String, Optional ByVal temp As Boolean = True)
-        ResTable.DisposeTempRes()
-        ItemTable.DisposeTempTags()
+        Dim startTime As Long = GetTickCount()
+        StandardIO.PrintLine("Conf: Loading configuration file: " + fileName)
+
         If temp Then
-            TempFlag = True
-            ResTable.SetTempFlag()
-            ItemTable.SetTempFlag()
+            If Not ResTable.HasTempFlag AndAlso Not ItemTable.HasTempFlag Then
+                TempFlag = True
+                ResTable.SetTempFlag()
+                ItemTable.SetTempFlag()
+            End If
+        Else
+            If ResTable.HasTempFlag OrElse ItemTable.HasTempFlag Then
+                ThrowError("LoadConfFile", "--", "Global configurations can only be loaded before any temporary configurations.")
+            End If
         End If
 
         Using ConfReader As XmlReader = XmlReader.Create(fileName)
@@ -48,9 +55,13 @@ Public Class Configuration
                     LoadRes(ConfReader)
                 ElseIf ConfReader.IsStartElement("itemSet") Then
                     LoadItemSet(ConfReader)
+                ElseIf ConfReader.IsStartElement("script") Then
+                    LoadScript(ConfReader)
                 End If
             End While
         End Using
+
+        StandardIO.PrintLine("Conf: Done on loading " + fileName + ". Cost " + CStr(GetTickCount() - startTime) + "ms.")
     End Sub
 
     Private Sub LoadStageConf(ByRef ConfReader As XmlReader)
@@ -90,6 +101,8 @@ Public Class Configuration
                 Dim ImageSrc As String = Confreader.GetAttribute("src")
                 res.Name = Confreader.GetAttribute("name")
                 res.Type = Resources.ResType.Image
+
+                StandardIO.PrintLine("Conf: Loading image '" + res.Name + "': " + ImageSrc)
 
                 If res.Name Is Nothing Then
                     Warning("LoadRes", "resources." + res.Name, "Empty resource name (This means no item can cite this resource).")
@@ -218,10 +231,22 @@ Public Class Configuration
         Return ResTable.AddRes(tag)
     End Function
 
+    Sub LoadScript(ByRef ConfReader As XmlReader)
+        Dim code As String = ConfReader.ReadElementContentAsString()
+        Dim start As Integer = GetTickCount()
+
+        StandardIO.PrintLine("Conf: == Executing script... ==")
+        ScriptEngine.Perform(ScriptEngine.LoadCode(code))
+        StandardIO.PrintLine("Conf: == Executing done. Cost " + CStr(GetTickCount() - start) + "ms. ==")
+    End Sub
+
     Sub LoadItemSet(ByRef ConfReader As XmlReader)
         Dim setItem As Item.ItemTag = New Item.ItemTag()
         Dim originPrefix As String = itemPrefix
         setItem.Name = ConfReader.GetAttribute("name")
+
+        StandardIO.PrintLine("Conf: Loading item set: " + setItem.Name)
+
         setItem.Type = Item.ItemType.ItemSet
         itemPrefix = setItem.Name
 
@@ -263,48 +288,48 @@ Public Class Configuration
             If baseStylePtr IsNot Nothing Then
                 tag.Content.Style = baseStylePtr
             End If
-            End If
+        End If
 
-            Dim originPrefix As String = itemPrefix
+        Dim originPrefix As String = itemPrefix
 
-            If enable IsNot Nothing Then
-                enable.ToLower()
-                If enable = "true" Then
-                    tag.Enable = True
-                ElseIf enable = "false" Then
-                    tag.Enable = False
-                Else
-                    Warning("LoadBlock", itemPrefix, "Unexpected attribute value for 'enable'.")
-                End If
-            Else
+        If enable IsNot Nothing Then
+            enable.ToLower()
+            If enable = "true" Then
                 tag.Enable = True
+            ElseIf enable = "false" Then
+                tag.Enable = False
+            Else
+                Warning("LoadBlock", itemPrefix, "Unexpected attribute value for 'enable'.")
             End If
+        Else
+            tag.Enable = True
+        End If
 
-            tag.Name = itemPrefix + "." + ConfReader.GetAttribute("name")
-            itemPrefix = tag.Name
-            tag.Type = Item.ItemType.Block
+        tag.Name = itemPrefix + "." + ConfReader.GetAttribute("name")
+        itemPrefix = tag.Name
+        tag.Type = Item.ItemType.Block
 
-            If Not ConfReader.IsEmptyElement() Then
-                ConfReader.ReadStartElement()
+        If Not ConfReader.IsEmptyElement() Then
+            ConfReader.ReadStartElement()
 
-                While ConfReader.Read()
-                    If ConfReader.IsStartElement("range") Then
-                        tag.Content.Range = LoadRange(ConfReader)
-                    ElseIf ConfReader.IsStartElement("style") Then
+            While ConfReader.Read()
+                If ConfReader.IsStartElement("range") Then
+                    tag.Content.Range = LoadRange(ConfReader)
+                ElseIf ConfReader.IsStartElement("style") Then
                     Dim status As Item.EventType = GetEventType(ConfReader.GetAttribute("status"))
                     tag.Content.Style(status) = LoadStyle(ConfReader)
-                    ElseIf ConfReader.IsStartElement("items") Then
-                        tag.Childs = LoadItems(ConfReader, tag.Content.Style)
-                    ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
-                        itemPrefix = originPrefix
-                        Exit While
-                    Else
-                        Warning("LoadBlock", "resources", "Unexpected element '" + ConfReader.Name + "'.")
-                    End If
-                End While
-            End If
+                ElseIf ConfReader.IsStartElement("items") Then
+                    tag.Childs = LoadItems(ConfReader, tag.Content.Style)
+                ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
+                    itemPrefix = originPrefix
+                    Exit While
+                Else
+                    Warning("LoadBlock", "resources", "Unexpected element '" + ConfReader.Name + "'.")
+                End If
+            End While
+        End If
 
-            Return ItemTable.AddItem(tag)
+        Return ItemTable.AddItem(tag)
     End Function
 
     Private Function LoadNormalItem(ByRef ConfReader As XmlReader, Optional ByRef baseStylePtr?() As UInt16 = Nothing) As UInt16
@@ -384,7 +409,7 @@ Public Class Configuration
     Private Function CheckFileVersion(ByRef ConfReader As XmlReader) As Boolean
         ConfReader.MoveToContent()
 
-        If ConfReader.IsStartElement("fileVersion") And _
+        If ConfReader.IsStartElement("fileVersion") AndAlso _
             ConfReader.ReadElementString() = FILE_VERSION Then
             Return True
         Else

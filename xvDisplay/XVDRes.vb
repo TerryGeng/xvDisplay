@@ -169,13 +169,19 @@ Namespace Resources
             TempResStartFlag = ResList.Count
         End Sub
 
-        Public Sub DisposeTempRes()
-            For i As Integer = TempResStartFlag To ResList.Count - 1
-                NameToAddress.Remove(ResList(i).Name)
-                ResList(i).Dispose()
-            Next
+        Public Function HasTempFlag() As Boolean
+            If TempResStartFlag <> 65535 Then
+                Return True
+            End If
+            Return False
+        End Function
 
+        Public Sub DisposeTempRes()
             If TempResStartFlag < ResList.Count Then
+                For i As Integer = TempResStartFlag To ResList.Count - 1
+                    NameToAddress.Remove(ResList(i).Name)
+                    ResList(i).Dispose()
+                Next
                 ResList.RemoveRange(TempResStartFlag, ResList.Count - 1 - TempResStartFlag)
             End If
 

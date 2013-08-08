@@ -73,6 +73,13 @@ Namespace Item
             TempTagStartFlag = Tags.Count
         End Sub
 
+        Public Function HasTempFlag() As Boolean
+            If TempTagStartFlag <> 65535 Then
+                Return True
+            End If
+            Return False
+        End Function
+
         Public Sub DisposeTempTags()
             If TempTagStartFlag < Tags.Count Then
                 For i As Integer = TempTagStartFlag To Tags.Count - 1

@@ -7,6 +7,8 @@ Imports xvDisplay.Item
 Public Class Draw
     Implements IDisposable
 
+    Declare Function GetTickCount Lib "kernel32" () As Long
+
     Public Enum UpdateFlag
         None
         Reflow
@@ -100,13 +102,17 @@ Public Class Draw
     End Sub
 
     Public Sub DrawItemSet(ByRef setName As String)
+        LoadItemSet(setName)
+        Draw()
+    End Sub
+
+    Public Sub LoadItemSet(ByRef setName As String)
+        SBSLibrary.StandardIO.PrintLine("Drawer: Reflowing item set '" + setName + "'.")
         OriginalItems = ItemTable.GetItemByName(setName).Childs
         If OriginalItems Is Nothing Then
             Throw New ApplicationException("Error: Unknown ItemSet '" + setName + "'.")
         End If
-
         Update = UpdateFlag.Reflow
-        Draw()
     End Sub
 
     Public Sub LoadItemsToDraw(ByRef ptr() As ItemPtr, Optional ByRef originRange As Rectangle = Nothing)
@@ -201,6 +207,7 @@ Public Class Draw
                 DrawImage(bufferGrap, mItem.Content, range, drawingItem.Status)
             End If
         Next
+
     End Sub
 
     Public Sub DrawToStage()

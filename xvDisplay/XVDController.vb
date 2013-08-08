@@ -1,35 +1,34 @@
 ﻿Public Class Controller
     Implements IDisposable
 
-    Dim StageForm As Form
-    Dim Drawer As Draw
-    Dim ItemTable As Item.ItemTable
-    Dim ResTable As Resources.ResTable
-    Dim Configuration As Configuration
+    Public Const Version As String = "v0.1a"
+
+    Friend StageForm As Form
+    Friend Drawer As Draw
+    Friend ItemTable As Item.ItemTable
+    Friend ResTable As Resources.ResTable
+    Friend Configuration As Configuration
+    Friend ScriptEngine As SBSLibrary.SBSEngine
+    Friend ScriptFunctions As ScriptFuncLib
 
     Sub New(ByRef _form As Form)
+        SBSLibrary.StandardIO.PrintLine("xvDisplay Controller " + Version + " Initializing... ")
         StageForm = _form
         ItemTable = New Item.ItemTable()
         ResTable = New Resources.ResTable()
         Drawer = New Draw(StageForm, ItemTable, ResTable)
 
-        Configuration = New Configuration(StageForm, ItemTable, ResTable, Drawer)
+        SBSLibrary.StandardIO.PrintLine("Script Engine Initializing...")
+        ScriptEngine = New SBSLibrary.SBSEngine()
+        ScriptFunctions = New ScriptFuncLib(Me)
+
+        Configuration = New Configuration(StageForm, ItemTable, ResTable, Drawer, ScriptEngine)
+
+        SBSLibrary.StandardIO.PrintLine("Initializing done.")
     End Sub
 
     Sub Start()
-        Configuration.LoadConfFile("E:\test.xdc", False)
-        Configuration.LoadConfFile("E:\test2.xdc")
-        DrawItemSet("newSecond")
-    End Sub
-
-    Sub DrawItemSet(ByVal setName As String)
-        Dim childs() As System.UInt16 = ItemTable.GetItemByName(setName).Childs
-        If childs Is Nothing Then
-            Throw New ApplicationException("Error: Unknown ItemSet '" + setName + "'.")
-        End If
-
-        Drawer.LoadItemsToDraw(childs)
-        Drawer.Draw()
+        Configuration.LoadConfFile("startup.xdc", False)
     End Sub
 
 #Region "IDisposable Support"

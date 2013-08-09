@@ -53,6 +53,7 @@ Public Class Draw
 
     Dim ItemTable As ItemTable
     Dim ItemsToDraw As Hashtable
+    Dim ItemsDrawingOrder As ArrayList
     Dim OriginalItems() As ItemPtr
 
     Dim ItemEvents As ArrayList
@@ -65,6 +66,7 @@ Public Class Draw
         StageGrap = Graphics.FromHwnd(Stage.Handle)
         ResTable = _resTable
         ItemsToDraw = New Hashtable()
+        ItemsDrawingOrder = New ArrayList()
         ItemEvents = New ArrayList()
         OriginalItems = {}
         UpdateF = UpdateFlag.Reflow
@@ -163,12 +165,14 @@ Public Class Draw
                         actRange.Size = actSize.ToSize()
                         actRange.Width += 1
                     End If
+                    ItemsDrawingOrder.Add(ptr(i))
                     ItemsToDraw.Add(ptr(i), New DrawingItem(ptr(i), mItem, actRange))
                 ElseIf mItem.Type = Item.ItemType.Image Then
                     If actRange.Width = 0 OrElse actRange.Height = 0 Then
                         Dim mImage As Image = ResTable.GetImageRes(mItem.Content.Image(Item.EventType.Normal))
                         actRange.Size = mImage.Size
                     End If
+                    ItemsDrawingOrder.Add(ptr(i))
                     ItemsToDraw.Add(ptr(i), New DrawingItem(ptr(i), mItem, actRange))
                 ElseIf mItem.Type = Item.ItemType.Block Then
                     LoadItemsToDraw(mItem.Childs, mItem.Content.Range)
@@ -194,10 +198,8 @@ Public Class Draw
         End If
         bufferGrap.Clear(Color.White)
 
-        Dim values As New ArrayList(ItemsToDraw.Values)
-
-        For i As Integer = values.Count - 1 To 0 Step -1
-            Dim drawingItem As DrawingItem = values(i)
+        For Each ptr As UInt16 In ItemsDrawingOrder
+            Dim drawingItem As DrawingItem = ItemsToDraw(ptr)
             Dim mItem As ItemTag = drawingItem.Tag
             Dim range As Rectangle = drawingItem.ActualRange
 
@@ -308,6 +310,7 @@ Public Class Draw
     Public Sub CleanLoadedItem()
         ItemsToDraw.Clear()
         ItemEvents.Clear()
+        ItemsDrawingOrder.Clear()
     End Sub
 
     Private Sub DisposeGraphicsAndBuffer()

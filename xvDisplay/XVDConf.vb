@@ -56,7 +56,12 @@ Public Class Configuration
                 ElseIf ConfReader.IsStartElement("itemSet") Then
                     LoadItemSet(ConfReader)
                 ElseIf ConfReader.IsStartElement("script") Then
-                    LoadScript(ConfReader)
+                    Dim ptr As UInt16 = LoadScript(ConfReader)
+                    Dim start As Integer = GetTickCount()
+
+                    StandardIO.PrintLine("Conf: == Executing script... ==")
+                    ScriptEngine.Perform(ResTable.GetScriptRange(ptr))
+                    StandardIO.PrintLine("Conf: == Executing done. Cost " + CStr(GetTickCount() - start) + "ms. ==")
                 End If
             End While
         End Using
@@ -231,14 +236,17 @@ Public Class Configuration
         Return ResTable.AddRes(tag)
     End Function
 
-    Sub LoadScript(ByRef ConfReader As XmlReader)
+    Private Function LoadScript(ByRef ConfReader As XmlReader) As UInt16
+        Dim tag As New Resources.ResTag
+        Dim name As String = ConfReader.GetAttribute("name")
         Dim code As String = ConfReader.ReadElementContentAsString()
-        Dim start As Integer = GetTickCount()
 
-        StandardIO.PrintLine("Conf: == Executing script... ==")
-        ScriptEngine.Perform(ScriptEngine.LoadCode(code))
-        StandardIO.PrintLine("Conf: == Executing done. Cost " + CStr(GetTickCount() - start) + "ms. ==")
-    End Sub
+        tag.Name = name
+        tag.Type = Resources.ResType.Script
+        tag.ScriptRange = ScriptEngine.LoadCode(code)
+
+        Return ResTable.AddRes(tag)
+    End Function
 
     Sub LoadItemSet(ByRef ConfReader As XmlReader)
         Dim setItem As Item.ItemTag = New Item.ItemTag()
@@ -251,7 +259,7 @@ Public Class Configuration
         itemPrefix = setItem.Name
 
 
-        setItem.Childs = LoadItems(ConfReader)
+        setItem.Childs = LoadItems(ConfReader, {0, Nothing, Nothing, Nothing})
         ItemTable.AddItem(setItem)
         itemPrefix = originPrefix
     End Sub
@@ -344,7 +352,7 @@ Public Class Configuration
         End If
 
         If baseStylePtr IsNot Nothing Then
-            tag.Content.Style = baseStylePtr
+            tag.Content.Style = baseStylePtr.Clone()
         End If
         If name IsNot Nothing Then
             tag.Name = itemPrefix + "." + name

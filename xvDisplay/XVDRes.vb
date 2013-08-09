@@ -7,6 +7,7 @@ Namespace Resources
         Text
         Sound
         Style
+        Script
     End Enum
 
     Public Class Style
@@ -62,6 +63,7 @@ Namespace Resources
         Public Text As String = ""
         Public Image As Image
         Public Style As Style
+        Public ScriptRange As SBSLibrary.Range = Nothing
 
         Sub New()
 
@@ -140,7 +142,7 @@ Namespace Resources
             If tag IsNot Nothing AndAlso tag.Type = ResType.Text Then
                 Return tag.Text
             Else
-                Throw New ApplicationException("Undefined resources '" + CStr(ptr) + "'.")
+                Throw New ApplicationException("Undefined text resources '" + CStr(ptr) + "'.")
                 Return Nothing
             End If
         End Function
@@ -150,7 +152,7 @@ Namespace Resources
             If tag IsNot Nothing AndAlso tag.Type = ResType.Image Then
                 Return tag.Image
             Else
-                Throw New ApplicationException("Undefined resources '" + CStr(ptr) + "'.")
+                Throw New ApplicationException("Undefined image resources '" + CStr(ptr) + "'.")
                 Return Nothing
             End If
         End Function
@@ -160,7 +162,17 @@ Namespace Resources
             If tag IsNot Nothing AndAlso tag.Type = ResType.Style Then
                 Return tag.Style
             Else
-                Throw New ApplicationException("Undefined resources '" + CStr(ptr) + "'.")
+                Throw New ApplicationException("Undefined style resources '" + CStr(ptr) + "'.")
+                Return Nothing
+            End If
+        End Function
+
+        Function GetScriptRange(ByVal ptr As UShort) As SBSLibrary.Range
+            Dim tag As ResTag = ResList(ptr)
+            If tag IsNot Nothing AndAlso tag.Type = ResType.Script Then
+                Return tag.ScriptRange
+            Else
+                Throw New ApplicationException("Undefined script resources '" + CStr(ptr) + "'.")
                 Return Nothing
             End If
         End Function

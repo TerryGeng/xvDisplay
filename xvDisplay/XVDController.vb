@@ -28,7 +28,12 @@
     End Sub
 
     Sub Start()
-        Configuration.LoadConfFile("startup.xdc", False)
+        Try
+            Configuration.LoadConfFile("startup.xdc", False)
+        Catch ex As Exception
+            SBSLibrary.StandardIO.PrintLine("Error: " + ex.Message)
+            DebugForm.Show()
+        End Try
     End Sub
 
 #Region "IDisposable Support"

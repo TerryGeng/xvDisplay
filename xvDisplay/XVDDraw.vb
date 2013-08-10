@@ -49,6 +49,8 @@ Public Class Draw
     Dim bufferBmp As Bitmap
     Dim bufferGrap As Graphics
 
+    Dim ScriptEngine As SBSLibrary.SBSEngine
+
     Dim ResTable As Resources.ResTable
 
     Dim ItemTable As ItemTable
@@ -58,9 +60,9 @@ Public Class Draw
 
     Dim ItemEvents As ArrayList
 
-    Public UpdateF As UpdateFlag
+    Public Update As UpdateFlag
 
-    Sub New(ByRef _stageForm As Form, ByRef _itemTable As ItemTable, ByRef _resTable As Resources.ResTable)
+    Sub New(ByRef _stageForm As Form, ByRef _itemTable As ItemTable, ByRef _resTable As Resources.ResTable, ByRef _scriptEngine As SBSLibrary.SBSEngine)
         Stage = _stageForm
         ItemTable = _itemTable
         StageGrap = Graphics.FromHwnd(Stage.Handle)
@@ -69,23 +71,25 @@ Public Class Draw
         ItemsDrawingOrder = New ArrayList()
         ItemEvents = New ArrayList()
         OriginalItems = {}
-        UpdateF = UpdateFlag.Reflow
+        Update = UpdateFlag.Reflow
         bufferBmp = New Bitmap(Stage.Width, Stage.Height)
         bufferGrap = Graphics.FromImage(bufferBmp)
+        ScriptEngine = _scriptEngine
 
         AddHandler Stage.Paint, AddressOf Draw
         AddHandler Stage.MouseMove, AddressOf OnMouseMove
+        AddHandler Stage.MouseDown, AddressOf OnMousePress
     End Sub
 
-    Private Property Update As UpdateFlag
-        Get
-            Return UpdateF
-        End Get
-        Set(ByVal update As UpdateFlag)
-            UpdateF = update
-            Draw()
-        End Set
-    End Property
+    'Private Property Update As UpdateFlag
+    '    Get
+    '        Return UpdateF
+    '    End Get
+    '    Set(ByVal update As UpdateFlag)
+    '        UpdateF = update
+    '        Draw()
+    '    End Set
+    'End Property
 
     Public Sub ChangeStageSize(ByVal width As Integer, ByVal height As Integer)
         Stage.ClientSize = New Size(width, height)
@@ -151,6 +155,14 @@ Public Class Draw
                     End If
                 End If
 
+                If mItem.Content.Script(Item.EventType.Hover) IsNot Nothing Then
+                    ItemEvents.Add(New ItemEvent(ptr(i), Item.EventType.Hover, AddressOf DoScript))
+                End If
+
+                If mItem.Content.Script(Item.EventType.Press) IsNot Nothing Then
+                    ItemEvents.Add(New ItemEvent(ptr(i), Item.EventType.Press, AddressOf DoScript))
+                End If
+
                 Dim actRange As New Rectangle
                 actRange.Width = mItem.Content.Range.Width
                 actRange.Height = mItem.Content.Range.Height
@@ -183,16 +195,17 @@ Public Class Draw
 
     Private Sub ChangeItemStatus(ByVal itemPtr As ItemPtr, ByVal Type As Item.EventType)
         Dim drawingItem As DrawingItem = ItemsToDraw(itemPtr)
-
         drawingItem.Status = Type
+        Update = UpdateFlag.Repaint
+        Draw()
     End Sub
 
     Public Sub DrawToBuffer()
         If Update = UpdateFlag.Reflow Then
+            CleanLoadedItem()
             LoadItemsToDraw(OriginalItems)
             Update = UpdateFlag.Repaint
         End If
-
         If bufferGrap Is Nothing Then
             ReloadGrap()
         End If
@@ -270,30 +283,55 @@ Public Class Draw
     End Sub
 
     Private Sub OnMouseMove(ByVal sender As System.Object, ByVal e As System.Windows.Forms.MouseEventArgs)
-        For Each ItemEvent As ItemEvent In ItemEvents
-            Dim status As Item.EventType = ItemEvent.Type
-            If status = Item.EventType.Hover Then
-                Dim dItem As DrawingItem = ItemsToDraw(ItemEvent.Ptr)
-                If dItem.Status <> Item.EventType.Hover Then
-                    Dim range As Rectangle = dItem.ActualRange
+        OnMouseEvent(sender, e, Item.EventType.Hover)
+    End Sub
 
-                    If InRectangle(e.Location, range) Then
-                        dItem.Status = Item.EventType.Hover
-                        Update = UpdateFlag.Repaint
+    Private Sub OnMousePress(ByVal sender As System.Object, ByVal e As System.Windows.Forms.MouseEventArgs)
+        OnMouseEvent(sender, e, Item.EventType.Press)
+    End Sub
+
+    Private Sub OnMouseEvent(ByVal sender As System.Object, ByVal e As System.Windows.Forms.MouseEventArgs, ByVal type As Item.EventType)
+        Try
+            For Each ItemEvent As ItemEvent In ItemEvents
+                Dim status As Item.EventType = ItemEvent.Type
+                Dim dItem As DrawingItem = ItemsToDraw(ItemEvent.Ptr)
+
+                If status = type Then
+                    If dItem.Status <> type Then
+                        Dim range As Rectangle = dItem.ActualRange
+
+                        If InRectangle(e.Location, range) Then
+                            dItem.Status = type
+                            ItemEvent.Handler(dItem.Ptr, type)
+                        End If
+                    End If
+                ElseIf status = Item.EventType.Normal Then ' [TEMP CODE]TODO: Think through this part.
+                    If dItem.Status <> Item.EventType.Normal Then
+                        Dim range As Rectangle = dItem.ActualRange
+
+                        If Not InRectangle(e.Location, range) Then
+                            dItem.Status = Item.EventType.Normal
+                            ItemEvent.Handler(dItem.Ptr, Item.EventType.Normal)
+                        End If
                     End If
                 End If
-            ElseIf status = Item.EventType.Normal Then
-                Dim dItem As DrawingItem = ItemsToDraw(ItemEvent.Ptr)
-                If dItem.Status <> Item.EventType.Normal Then
-                    Dim range As Rectangle = dItem.ActualRange
+            Next
+        Catch ex As Exception
+            Return
+        End Try
+    End Sub
 
-                    If Not InRectangle(e.Location, range) Then
-                        dItem.Status = Item.EventType.Normal
-                        Update = UpdateFlag.Repaint
-                    End If
-                End If
-            End If
-        Next
+    Public Sub DoScript(ByVal itemPtr As ItemPtr, ByVal Type As Item.EventType)
+        Dim start As Integer = GetTickCount()
+        Dim scriptPtr As UInt16 = ItemsToDraw(itemPtr).Tag.Content.Script(Type)
+
+        SBSLibrary.StandardIO.PrintLine("Drawer: == Executing script... ==")
+        Try
+            ScriptEngine.Perform(ResTable.GetScriptRange(scriptPtr), False)
+        Catch ex As Exception
+            SBSLibrary.StandardIO.PrintLine("Script Error: " + ex.Message)
+        End Try
+        SBSLibrary.StandardIO.PrintLine("Drawer: == Executing done. Cost " + CStr(GetTickCount() - start) + "ms. ==")
     End Sub
 
     Private Function InRectangle(ByVal Point As Point, ByVal Rectangle As Rectangle) As Boolean

@@ -20,6 +20,9 @@
             Next
         ElseIf e.KeyChar = "d" Then
             DebugForm.Visible = Not DebugForm.Visible
+        ElseIf e.KeyChar = "q" Then
+            DebugForm.IfClose = True
+            Application.Exit()
         End If
     End Sub
 End Class

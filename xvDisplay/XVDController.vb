@@ -1,7 +1,7 @@
 ﻿Public Class Controller
     Implements IDisposable
 
-    Public Const Version As String = "v0.1a"
+    Public Const Version As String = "v0.1a1"
 
     Friend StageForm As Form
     Friend Drawer As Draw
@@ -16,12 +16,12 @@
         StageForm = _form
         ItemTable = New Item.ItemTable()
         ResTable = New Resources.ResTable()
-        Drawer = New Draw(StageForm, ItemTable, ResTable)
 
         SBSLibrary.StandardIO.PrintLine("Script Engine Initializing...")
         ScriptEngine = New SBSLibrary.SBSEngine()
         ScriptFunctions = New ScriptFuncLib(Me)
 
+        Drawer = New Draw(StageForm, ItemTable, ResTable, ScriptEngine)
         Configuration = New Configuration(StageForm, ItemTable, ResTable, Drawer, ScriptEngine)
 
         SBSLibrary.StandardIO.PrintLine("Initializing done.")

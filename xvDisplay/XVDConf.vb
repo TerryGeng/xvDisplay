@@ -32,6 +32,7 @@ Public Class Configuration
         If temp Then
             If Not ResTable.HasTempFlag AndAlso Not ItemTable.HasTempFlag Then
                 TempFlag = True
+                ScriptEngine.RecordStackTop()
                 ResTable.SetTempFlag()
                 ItemTable.SetTempFlag()
             End If
@@ -57,16 +58,21 @@ Public Class Configuration
                     LoadItemSet(ConfReader)
                 ElseIf ConfReader.IsStartElement("script") Then
                     Dim ptr As UInt16 = LoadScript(ConfReader)
-                    Dim start As Integer = GetTickCount()
 
-                    StandardIO.PrintLine("Conf: == Executing script... ==")
-                    ScriptEngine.Perform(ResTable.GetScriptRange(ptr))
-                    StandardIO.PrintLine("Conf: == Executing done. Cost " + CStr(GetTickCount() - start) + "ms. ==")
+                    DoScriptByPtr(ptr)
                 End If
             End While
         End Using
 
         StandardIO.PrintLine("Conf: Done on loading " + fileName + ". Cost " + CStr(GetTickCount() - startTime) + "ms.")
+    End Sub
+
+    Public Sub DisposeTempObj()
+        If ResTable.HasTempFlag() AndAlso ItemTable.HasTempFlag() Then
+            ResTable.DisposeTempRes()
+            ItemTable.DisposeTempTags()
+            ScriptEngine.StackTopResetToPrevious()
+        End If
     End Sub
 
     Private Sub LoadStageConf(ByRef ConfReader As XmlReader)
@@ -237,6 +243,13 @@ Public Class Configuration
     End Function
 
     Private Function LoadScript(ByRef ConfReader As XmlReader) As UInt16
+        If ConfReader.MoveToAttribute("res") Then
+            Dim scriptName As String = ConfReader.ReadContentAsString()
+            Dim scriptPtr As UInt16 = ResTable.GetResPtr(scriptName)
+            ConfReader.MoveToElement()
+            Return scriptPtr
+        End If
+
         Dim tag As New Resources.ResTag
         Dim name As String = ConfReader.GetAttribute("name")
         Dim code As String = ConfReader.ReadElementContentAsString()
@@ -403,6 +416,9 @@ Public Class Configuration
                 ElseIf ConfReader.IsStartElement("style") Then
                     Dim status As Item.EventType = GetEventType(ConfReader.GetAttribute("status"))
                     tag.Content.Style(status) = LoadStyle(ConfReader)
+                ElseIf ConfReader.IsStartElement("script") Then
+                    Dim status As Item.EventType = GetEventType(ConfReader.GetAttribute("status"))
+                    tag.Content.Script(status) = LoadScript(ConfReader)
                 ElseIf ConfReader.NodeType = XmlNodeType.EndElement Then
                     Exit While
                 Else
@@ -476,6 +492,14 @@ Public Class Configuration
 
         Return status
     End Function
+
+    Public Sub DoScriptByPtr(ByVal ptr As UInt16)
+        Dim start As Integer = GetTickCount()
+
+        StandardIO.PrintLine("Conf: == Executing script... ==")
+        ScriptEngine.Perform(ResTable.GetScriptRange(ptr), False)
+        StandardIO.PrintLine("Conf: == Executing done. Cost " + CStr(GetTickCount() - start) + "ms. ==")
+    End Sub
 
     Private Sub Warning(ByVal funcName As String, ByVal Position As String, ByVal Message As String)
         MsgBox(String.Format("Configuration Warning ({1})[{0}]: {2}", funcName, Position, Message))

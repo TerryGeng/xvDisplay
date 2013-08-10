@@ -111,6 +111,7 @@ Namespace Item
         Public Style?(3) As ResPtr
         Public Text?(3) As ResPtr
         Public Image?(3) As ResPtr
+        Public Script?(3) As ResPtr
     End Class
 End Namespace
 

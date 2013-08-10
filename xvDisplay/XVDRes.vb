@@ -114,7 +114,7 @@ Namespace Resources
             ResList = New ArrayList(40)
             NameToAddress = New Hashtable(40)
 
-            Dim defaultStyle As New Resources.Style(New Font(New FontFamily("Verdana"), 16), _
+            Dim defaultStyle As New Resources.Style(New Font(New FontFamily("Fixedsys Excelsior 2.00"), 16), _
                                                                      New SolidBrush(Drawing.Color.Black), _
                                                                      255)
             Dim defaultStyleTag As New ResTag
@@ -171,6 +171,16 @@ Namespace Resources
             Dim tag As ResTag = ResList(ptr)
             If tag IsNot Nothing AndAlso tag.Type = ResType.Script Then
                 Return tag.ScriptRange
+            Else
+                Throw New ApplicationException("Undefined script resources '" + CStr(ptr) + "'.")
+                Return Nothing
+            End If
+        End Function
+
+        Function GetResType(ByVal ptr As UShort) As ResType
+            Dim tag As ResTag = ResList(ptr)
+            If tag IsNot Nothing Then
+                Return tag.Type
             Else
                 Throw New ApplicationException("Undefined script resources '" + CStr(ptr) + "'.")
                 Return Nothing
